@@ -88,7 +88,12 @@ under the License.
 			<artifactId>flink-clients_2.11</artifactId>
 			<version>${flink.version}</version>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-ml_2.11</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+    </dependencies>
 
 	<profiles>
 		<profile>
@@ -116,7 +121,14 @@ under the License.
 					<version>${flink.version}</version>
 					<scope>compile</scope>
 				</dependency>
-			</dependencies>
+                <dependency>
+                    <groupId>org.apache.flink</groupId>
+                    <artifactId>flink-ml_2.11</artifactId>
+                    <version>${flink.version}</version>
+                    <scope>compile</scope>
+                </dependency>
+
+            </dependencies>
 
 			<build>
 				<plugins>
