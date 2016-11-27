@@ -58,7 +58,7 @@ abstract class GradientDescent extends IterativeSolver {
     */
   override def optimize(
                          data: DataSet[LabeledVector],
-                         initialWeights: Option[DataSet[WeightVector]] = None): DataSet[WeightVector] = {
+                         initialWeights: Option[DataSet[WeightVector]]): DataSet[WeightVector] = {
 
     val numberOfIterations: Int = parameters(Iterations)
     val convergenceThresholdOption: Option[Double] = parameters.get(ConvergenceThreshold)
