@@ -24,7 +24,6 @@ import org.apache.flink.ml.math.{SparseVector, DenseVector}
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.optimization.IterativeSolver._
 import org.apache.flink.ml.optimization.LearningRateMethod.LearningRateMethodTrait
-import org.apache.flink.ml.optimization.LossFunction
 
 /** Base class for optimization algorithms
  *
@@ -40,8 +39,9 @@ abstract class Solver extends Serializable with WithParameters {
     */
   def optimize(
       data: DataSet[LabeledVector],
-      initialWeights: Option[DataSet[WeightVector]])
-    : DataSet[WeightVector]
+      initialWeights: Option[DataSet[RecommenderWeights]],
+      f: DataSet[Int])
+    : DataSet[RecommenderWeights]
 
   /** Creates initial weights vector, creating a DataSet with a WeightVector element
     *

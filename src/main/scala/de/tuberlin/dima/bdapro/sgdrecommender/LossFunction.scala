@@ -80,18 +80,18 @@ case class GenericLossFunction(
     * @param weightVector
     * @return
     */
-  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, WeightVector) = {
+  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, RecommenderWeights) = {
     val prediction = predictionFunction.predict(weightVector)
 
     val loss = partialLossFunction.loss(prediction, dataPoint.label)
 
     val lossDerivative = partialLossFunction.derivative(prediction, dataPoint.label)
 
-    val WeightVector(weightGradient, interceptGradient) =
-      predictionFunction.gradient(weightVector)
+    val weightGradient = predictionFunction.gradient(weightVector)
 
-    BLAS.scal(lossDerivative, weightGradient)
+    BLAS.scal(lossDerivative, weightGradient.itemWeights.weights)
+    BLAS.scal(lossDerivative, weightGradient.userWeights.weights)
 
-    (loss, WeightVector(weightGradient, lossDerivative * interceptGradient))
+    (loss, weightGradient)
   }
 }

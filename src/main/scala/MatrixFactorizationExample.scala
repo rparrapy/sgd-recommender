@@ -1,6 +1,6 @@
 import org.apache.flink.api.scala.ExecutionEnvironment
 import org.apache.flink.ml.common.WeightVector
-import org.apache.flink.ml.math.{DenseVector, VectorBuilder}
+import org.apache.flink.ml.math.DenseVector
 /**
   * Created by duy on 12/7/16.
   */

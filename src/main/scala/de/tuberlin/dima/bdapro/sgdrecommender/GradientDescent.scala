@@ -26,6 +26,7 @@ import org.apache.flink.ml._
 import org.apache.flink.ml.common._
 import org.apache.flink.ml.math._
 import org.apache.flink.ml.optimization.LearningRateMethod.LearningRateMethodTrait
+import de.tuberlin.dima.bdapro.sgdrecommender.IterativeSolver
 
 /** Base class which performs Stochastic Gradient Descent optimization using mini batches.
   *
@@ -55,6 +56,7 @@ abstract class GradientDescent extends IterativeSolver {
     * @param initialWeights The initial weights that will be optimized
     * @return The weights, optimized for the provided data.
     */
+
   override def optimize(
                          data: DataSet[LabeledVector],
                          initialWeights: Option[DataSet[RecommenderWeights]],
@@ -79,172 +81,196 @@ abstract class GradientDescent extends IterativeSolver {
       learningRateMethod)
 
     // Perform the iterations
-//    convergenceThresholdOption match {
-      // No convergence criterion
-//      case None =>
-//        optimizeWithoutConvergenceCriterion(
-//          data,
-//          initialWeightsDS,
-//          numberOfIterations,
-//          regularizationConstant,
-//          learningRate,
-//          lossFunction,
-//          learningRateMethod)
-//      case Some(convergence) =>
-//        optimizeWithConvergenceCriterion(
-//          data,
-//          initialWeightsDS,
-//          numberOfIterations,
-//          regularizationConstant,
-//          learningRate,
-//          convergence,
-//          lossFunction,
-//          learningRateMethod)
-//    }
-//  }
+    //    convergenceThresholdOption match {
+    // No convergence criterion
+    //      case None =>
+    //        optimizeWithoutConvergenceCriterion(
+    //          data,
+    //          initialWeightsDS,
+    //          numberOfIterations,
+    //          regularizationConstant,
+    //          learningRate,
+    //          lossFunction,
+    //          learningRateMethod)
+    //      case Some(convergence) =>
+    //        optimizeWithConvergenceCriterion(
+    //          data,
+    //          initialWeightsDS,
+    //          numberOfIterations,
+    //          regularizationConstant,
+    //          learningRate,
+    //          convergence,
+    //          lossFunction,
+    //          learningRateMethod)
+    //    }
+    //  }
 
-//  def optimizeWithConvergenceCriterion(
-//                                        dataPoints: DataSet[LabeledVector],
-//                                        initialWeightsDS: DataSet[WeightVector],
-//                                        numberOfIterations: Int,
-//                                        regularizationConstant: Double,
-//                                        learningRate: Double,
-//                                        convergenceThreshold: Double,
-//                                        lossFunction: LossFunction,
-//                                        learningRateMethod: LearningRateMethodTrait)
-//  : DataSet[WeightVector] = {
-//    // We have to calculate for each weight vector the sum of squared residuals,
-//    // and then sum them and apply regularization
-//    val initialLossSumDS = calculateLoss(dataPoints, initialWeightsDS, lossFunction)
-//
-//    // Combine weight vector with the current loss
-//    val initialWeightsWithLossSum = initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
-//      (weights, loss) => (weights, loss)
-//    }
-//
-//    val resultWithLoss = initialWeightsWithLossSum.iterateWithTermination(numberOfIterations) {
-//      weightsWithPreviousLossSum =>
-//
-//        // Extract weight vector and loss
-//        val previousWeightsDS = weightsWithPreviousLossSum.map {
-//          _._1
-//        }
-//        val previousLossSumDS = weightsWithPreviousLossSum.map {
-//          _._2
-//        }
-//
-//        val currentWeightsDS = SGDStep(
-//          dataPoints,
-//          previousWeightsDS,
-//          lossFunction,
-//          regularizationConstant,
-//          learningRate,
-//          learningRateMethod)
-//
-//        val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
-//
-//        // Check if the relative change in the loss is smaller than the
-//        // convergence threshold. If yes, then terminate i.e. return empty termination data set
-//        val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
-//          (previousLoss, currentLoss) => {
-//            if (previousLoss <= 0) {
-//              false
-//            } else {
-//              scala.math.abs((previousLoss - currentLoss) / previousLoss) >= convergenceThreshold
-//            }
-//          }
-//        }
-//
-//        // Result for new iteration
-//        (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l)), termination)
-//    }
-//    // Return just the weights
-//    resultWithLoss.map {
-//      _._1
-//    }
-//  }
-
-  def optimizeWithoutConvergenceCriterion(
-                                           data: DataSet[LabeledVector],
-                                           initialWeightsDS: DataSet[RecommenderWeights],
-                                           numberOfIterations: Int,
-                                           regularizationConstant: Double,
-                                           learningRate: Double,
-                                           lossFunction: LossFunction,
-                                           optimizationMethod: LearningRateMethodTrait)
-  : DataSet[RecommenderWeights] = {
-    initialWeightsDS.iterate(numberOfIterations) {
-      weightVectorDS => {
-        SGDStep(data,
-          weightVectorDS,
-          lossFunction,
-          regularizationConstant,
-          learningRate,
-          optimizationMethod)
-      }
-    }
+    //  def optimizeWithConvergenceCriterion(
+    //                                        dataPoints: DataSet[LabeledVector],
+    //                                        initialWeightsDS: DataSet[WeightVector],
+    //                                        numberOfIterations: Int,
+    //                                        regularizationConstant: Double,
+    //                                        learningRate: Double,
+    //                                        convergenceThreshold: Double,
+    //                                        lossFunction: LossFunction,
+    //                                        learningRateMethod: LearningRateMethodTrait)
+    //  : DataSet[WeightVector] = {
+    //    // We have to calculate for each weight vector the sum of squared residuals,
+    //    // and then sum them and apply regularization
+    //    val initialLossSumDS = calculateLoss(dataPoints, initialWeightsDS, lossFunction)
+    //
+    //    // Combine weight vector with the current loss
+    //    val initialWeightsWithLossSum = initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
+    //      (weights, loss) => (weights, loss)
+    //    }
+    //
+    //    val resultWithLoss = initialWeightsWithLossSum.iterateWithTermination(numberOfIterations) {
+    //      weightsWithPreviousLossSum =>
+    //
+    //        // Extract weight vector and loss
+    //        val previousWeightsDS = weightsWithPreviousLossSum.map {
+    //          _._1
+    //        }
+    //        val previousLossSumDS = weightsWithPreviousLossSum.map {
+    //          _._2
+    //        }
+    //
+    //        val currentWeightsDS = SGDStep(
+    //          dataPoints,
+    //          previousWeightsDS,
+    //          lossFunction,
+    //          regularizationConstant,
+    //          learningRate,
+    //          learningRateMethod)
+    //
+    //        val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
+    //
+    //        // Check if the relative change in the loss is smaller than the
+    //        // convergence threshold. If yes, then terminate i.e. return empty termination data set
+    //        val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
+    //          (previousLoss, currentLoss) => {
+    //            if (previousLoss <= 0) {
+    //              false
+    //            } else {
+    //              scala.math.abs((previousLoss - currentLoss) / previousLoss) >= convergenceThreshold
+    //            }
+    //          }
+    //        }
+    //
+    //        // Result for new iteration
+    //        (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l)), termination)
+    //    }
+    //    // Return just the weights
+    //    resultWithLoss.map {
+    //      _._1
+    //    }
+    //  }
   }
 
-  /** Performs one iteration of Stochastic Gradient Descent using mini batches
-    *
-    * @param data           A Dataset of LabeledVector (label, features) pairs
-    * @param currentWeights A Dataset with the current weights to be optimized as its only element
-    * @return A Dataset containing the weights after one stochastic gradient descent step
-    */
-  def SGDStep(
-                       data: DataSet[(LabeledVector)],
-                       currentWeights: DataSet[RecommenderWeights],
-                       lossFunction: LossFunction,
-                       regularizationConstant: Double,
-                       learningRate: Double,
-                       learningRateMethod: LearningRateMethodTrait)
-   : DataSet[RecommenderWeights] = {
-
-    data.mapWithBcVariable(currentWeights) {
-      (data, weightVector) => (lossFunction.gradient(data, weightVector), 1)
-    }.reduce {
-      (left, right) =>
-        val (leftGradVector, leftCount) = left
-        val (rightGradVector, rightCount) = right
-
-        // make the left gradient dense so that the following reduce operations (left fold) reuse
-        // it. This strongly depends on the underlying implementation of the ReduceDriver which
-        // always passes the new input element as the second parameter
-        val result = leftGradVector.weights match {
-          case d: DenseVector => d
-          case s: SparseVector => s.toDenseVector
+    def optimizeWithoutConvergenceCriterion(
+                                             data: DataSet[LabeledVector],
+                                             initialWeightsDS: DataSet[RecommenderWeights],
+                                             numberOfIterations: Int,
+                                             regularizationConstant: Double,
+                                             learningRate: Double,
+                                             lossFunction: LossFunction,
+                                             optimizationMethod: LearningRateMethodTrait)
+    : DataSet[RecommenderWeights] = {
+      initialWeightsDS.iterate(numberOfIterations) {
+        weightVectorDS => {
+          SGDStep(data,
+            weightVectorDS,
+            lossFunction,
+            regularizationConstant,
+            learningRate,
+            optimizationMethod)
         }
-
-        // Add the right gradient to the result
-        BLAS.axpy(1.0, rightGradVector.weights, result)
-        val gradients = WeightVector(
-          result, leftGradVector.intercept + rightGradVector.intercept)
-
-        (gradients, leftCount + rightCount)
-    }.mapWithBcVariableIteration(currentWeights) {
-      (gradientCount, weightVector, iteration) => {
-        val (WeightVector(weights, intercept), count) = gradientCount
-
-        BLAS.scal(1.0 / count, weights)
-
-        val gradient = WeightVector(weights, intercept / count)
-        val effectiveLearningRate = learningRateMethod.calculateLearningRate(
-          learningRate,
-          iteration,
-          regularizationConstant)
-
-        val newWeights = takeStep(
-          weightVector.weights,
-          gradient.weights,
-          regularizationConstant,
-          effectiveLearningRate)
-
-        WeightVector(
-          newWeights,
-          weightVector.intercept - effectiveLearningRate * gradient.intercept)
       }
     }
-  }
+
+    /** Performs one iteration of Stochastic Gradient Descent using mini batches
+      *
+      * @param data           A Dataset of LabeledVector (label, features) pairs
+      * @param currentWeights A Dataset with the current weights to be optimized as its only element
+      * @return A Dataset containing the weights after one stochastic gradient descent step
+      */
+    def SGDStep(
+                 data: DataSet[(LabeledVector)],
+                 currentWeights: DataSet[RecommenderWeights],
+                 lossFunction: LossFunction,
+                 regularizationConstant: Double,
+                 learningRate: Double,
+                 learningRateMethod: LearningRateMethodTrait)
+    : DataSet[RecommenderWeights] = {
+
+      data.mapWithBcVariable(currentWeights) {
+        (data, weightVector) => (lossFunction.gradient(data, weightVector), 1)
+      }.reduce {
+        (left, right) =>
+          val (leftGradVector, leftCount) = left
+          val (rightGradVector, rightCount) = right
+
+          // make the left gradient dense so that the following reduce operations (left fold) reuse
+          // it. This strongly depends on the underlying implementation of the ReduceDriver which
+          // always passes the new input element as the second parameter
+          val itemResult = leftGradVector.itemWeights.weights match {
+            case d: DenseVector => d
+            case s: SparseVector => s.toDenseVector
+          }
+          val userResult = leftGradVector.userWeights.weights match {
+            case d: DenseVector => d
+            case s: SparseVector => s.toDenseVector
+          }
+
+          // Add the right gradient to the result
+          BLAS.axpy(1.0, rightGradVector.itemWeights.weights, itemResult)
+          BLAS.axpy(1.0, rightGradVector.userWeights.weights, userResult)
+
+          val itemGradients = WeightVector(
+            itemResult, leftGradVector.itemWeights.intercept + rightGradVector.itemWeights.intercept)
+          val userGradients = WeightVector(
+            userResult, leftGradVector.userWeights.intercept + rightGradVector.userWeights.intercept)
+          val gradients = RecommenderWeights(itemGradients, userGradients)
+
+          (gradients, leftCount + rightCount)
+      }.mapWithBcVariableIteration(currentWeights) {
+        (gradientCount, weightVector, iteration) => {
+          val (RecommenderWeights(WeightVector(itemWeights, itemIntercept),
+          WeightVector(userWeights, userIntercept)), count) = gradientCount
+
+          BLAS.scal(1.0 / count, itemWeights)
+          BLAS.scal(1.0 / count, userWeights)
+
+          val itemGradient = WeightVector(itemWeights, itemIntercept / count)
+          val userGradient = WeightVector(userWeights, userIntercept / count)
+
+          val effectiveLearningRate = learningRateMethod.calculateLearningRate(
+            learningRate,
+            iteration,
+            regularizationConstant)
+
+          val tempNewItemWeights = takeStep(
+            weightVector.itemWeights.weights,
+            itemGradient.weights,
+            regularizationConstant,
+            effectiveLearningRate)
+          val tempNewUserWeights = takeStep(
+            weightVector.userWeights.weights,
+            userGradient.weights,
+            regularizationConstant,
+            effectiveLearningRate)
+
+          val newItemWeights = WeightVector(
+            tempNewItemWeights,
+            weightVector.itemWeights.intercept - effectiveLearningRate * itemGradient.intercept)
+          val newUserWeights = WeightVector(
+            tempNewUserWeights,
+            weightVector.userWeights.intercept - effectiveLearningRate * userGradient.intercept)
+
+          RecommenderWeights(newItemWeights, newUserWeights)
+        }
+      }
+    }
 
   /** Calculates the new weights based on the gradient
     *
@@ -254,12 +280,10 @@ abstract class GradientDescent extends IterativeSolver {
     * @param learningRate
     * @return
     */
-  def takeStep(
-                weightVector: Vector,
-                gradient: Vector,
-                regularizationConstant: Double,
-                learningRate: Double
-              ): Vector
+  def takeStep(weightVector: Vector,
+               ngradient: Vector,
+               regularizationConstant: Double,
+               learningRate: Double): Vector
 
   /** Calculates the regularized loss, from the data and given weights.
     *
@@ -270,7 +294,7 @@ abstract class GradientDescent extends IterativeSolver {
     */
   private def calculateLoss(
                              data: DataSet[LabeledVector],
-                             weightDS: DataSet[WeightVector],
+                             weightDS: DataSet[RecommenderWeights],
                              lossFunction: LossFunction)
   : DataSet[Double] = {
     data.mapWithBcVariable(weightDS) {

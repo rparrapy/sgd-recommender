@@ -35,6 +35,6 @@ object RecommenderPrediction extends PredictionFunction {
   }
 
   override def gradient(weights: RecommenderWeights): RecommenderWeights= {
-    new RecommenderWeights(weights.userWeights, weights.itemWeights)
+    RecommenderWeights(weights.userWeights, weights.itemWeights)
   }
 }
