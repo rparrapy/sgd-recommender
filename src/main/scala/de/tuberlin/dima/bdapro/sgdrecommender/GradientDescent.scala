@@ -19,14 +19,13 @@
 package de.tuberlin.dima.bdapro.sgdrecommender
 
 
+import de.tuberlin.dima.bdapro.sgdrecommender.IterativeSolver._
+import de.tuberlin.dima.bdapro.sgdrecommender.Solver.{LossFunction, RegularizationConstant}
 import org.apache.flink.api.scala._
 import org.apache.flink.ml._
 import org.apache.flink.ml.common._
 import org.apache.flink.ml.math._
-import org.apache.flink.ml.optimization.IterativeSolver._
 import org.apache.flink.ml.optimization.LearningRateMethod.LearningRateMethodTrait
-import org.apache.flink.ml.optimization.Solver._
-import org.apache.flink.ml.optimization.{IterativeSolver, LossFunction}
 
 /** Base class which performs Stochastic Gradient Descent optimization using mini batches.
   *
@@ -58,7 +57,8 @@ abstract class GradientDescent extends IterativeSolver {
     */
   override def optimize(
                          data: DataSet[LabeledVector],
-                         initialWeights: Option[DataSet[WeightVector]]): DataSet[WeightVector] = {
+                         initialWeights: Option[DataSet[RecommenderWeights]],
+                         f: DataSet[Int]): DataSet[RecommenderWeights] = {
 
     val numberOfIterations: Int = parameters(Iterations)
     val convergenceThresholdOption: Option[Double] = parameters.get(ConvergenceThreshold)
@@ -67,103 +67,112 @@ abstract class GradientDescent extends IterativeSolver {
     val regularizationConstant = parameters(RegularizationConstant)
     val learningRateMethod = parameters(LearningRateMethodValue)
     // Initialize weights
-    val initialWeightsDS: DataSet[WeightVector] = createInitialWeightsDS(initialWeights, data)
+    val initialWeightsDS: DataSet[RecommenderWeights] = createInitialWeightsDS(initialWeights, f)
+
+    optimizeWithoutConvergenceCriterion(
+      data,
+      initialWeightsDS,
+      numberOfIterations,
+      regularizationConstant,
+      learningRate,
+      lossFunction,
+      learningRateMethod)
 
     // Perform the iterations
-    convergenceThresholdOption match {
+//    convergenceThresholdOption match {
       // No convergence criterion
-      case None =>
-        optimizeWithoutConvergenceCriterion(
-          data,
-          initialWeightsDS,
-          numberOfIterations,
-          regularizationConstant,
-          learningRate,
-          lossFunction,
-          learningRateMethod)
-      case Some(convergence) =>
-        optimizeWithConvergenceCriterion(
-          data,
-          initialWeightsDS,
-          numberOfIterations,
-          regularizationConstant,
-          learningRate,
-          convergence,
-          lossFunction,
-          learningRateMethod)
-    }
-  }
+//      case None =>
+//        optimizeWithoutConvergenceCriterion(
+//          data,
+//          initialWeightsDS,
+//          numberOfIterations,
+//          regularizationConstant,
+//          learningRate,
+//          lossFunction,
+//          learningRateMethod)
+//      case Some(convergence) =>
+//        optimizeWithConvergenceCriterion(
+//          data,
+//          initialWeightsDS,
+//          numberOfIterations,
+//          regularizationConstant,
+//          learningRate,
+//          convergence,
+//          lossFunction,
+//          learningRateMethod)
+//    }
+//  }
 
-  def optimizeWithConvergenceCriterion(
-                                        dataPoints: DataSet[LabeledVector],
-                                        initialWeightsDS: DataSet[WeightVector],
-                                        numberOfIterations: Int,
-                                        regularizationConstant: Double,
-                                        learningRate: Double,
-                                        convergenceThreshold: Double,
-                                        lossFunction: LossFunction,
-                                        learningRateMethod: LearningRateMethodTrait)
-  : DataSet[WeightVector] = {
-    // We have to calculate for each weight vector the sum of squared residuals,
-    // and then sum them and apply regularization
-    val initialLossSumDS = calculateLoss(dataPoints, initialWeightsDS, lossFunction)
-
-    // Combine weight vector with the current loss
-    val initialWeightsWithLossSum = initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
-      (weights, loss) => (weights, loss)
-    }
-
-    val resultWithLoss = initialWeightsWithLossSum.iterateWithTermination(numberOfIterations) {
-      weightsWithPreviousLossSum =>
-
-        // Extract weight vector and loss
-        val previousWeightsDS = weightsWithPreviousLossSum.map {
-          _._1
-        }
-        val previousLossSumDS = weightsWithPreviousLossSum.map {
-          _._2
-        }
-
-        val currentWeightsDS = SGDStep(
-          dataPoints,
-          previousWeightsDS,
-          lossFunction,
-          regularizationConstant,
-          learningRate,
-          learningRateMethod)
-
-        val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
-
-        // Check if the relative change in the loss is smaller than the
-        // convergence threshold. If yes, then terminate i.e. return empty termination data set
-        val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
-          (previousLoss, currentLoss) => {
-            if (previousLoss <= 0) {
-              false
-            } else {
-              scala.math.abs((previousLoss - currentLoss) / previousLoss) >= convergenceThreshold
-            }
-          }
-        }
-
-        // Result for new iteration
-        (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l)), termination)
-    }
-    // Return just the weights
-    resultWithLoss.map {
-      _._1
-    }
-  }
+//  def optimizeWithConvergenceCriterion(
+//                                        dataPoints: DataSet[LabeledVector],
+//                                        initialWeightsDS: DataSet[WeightVector],
+//                                        numberOfIterations: Int,
+//                                        regularizationConstant: Double,
+//                                        learningRate: Double,
+//                                        convergenceThreshold: Double,
+//                                        lossFunction: LossFunction,
+//                                        learningRateMethod: LearningRateMethodTrait)
+//  : DataSet[WeightVector] = {
+//    // We have to calculate for each weight vector the sum of squared residuals,
+//    // and then sum them and apply regularization
+//    val initialLossSumDS = calculateLoss(dataPoints, initialWeightsDS, lossFunction)
+//
+//    // Combine weight vector with the current loss
+//    val initialWeightsWithLossSum = initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
+//      (weights, loss) => (weights, loss)
+//    }
+//
+//    val resultWithLoss = initialWeightsWithLossSum.iterateWithTermination(numberOfIterations) {
+//      weightsWithPreviousLossSum =>
+//
+//        // Extract weight vector and loss
+//        val previousWeightsDS = weightsWithPreviousLossSum.map {
+//          _._1
+//        }
+//        val previousLossSumDS = weightsWithPreviousLossSum.map {
+//          _._2
+//        }
+//
+//        val currentWeightsDS = SGDStep(
+//          dataPoints,
+//          previousWeightsDS,
+//          lossFunction,
+//          regularizationConstant,
+//          learningRate,
+//          learningRateMethod)
+//
+//        val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
+//
+//        // Check if the relative change in the loss is smaller than the
+//        // convergence threshold. If yes, then terminate i.e. return empty termination data set
+//        val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
+//          (previousLoss, currentLoss) => {
+//            if (previousLoss <= 0) {
+//              false
+//            } else {
+//              scala.math.abs((previousLoss - currentLoss) / previousLoss) >= convergenceThreshold
+//            }
+//          }
+//        }
+//
+//        // Result for new iteration
+//        (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l)), termination)
+//    }
+//    // Return just the weights
+//    resultWithLoss.map {
+//      _._1
+//    }
+//  }
 
   def optimizeWithoutConvergenceCriterion(
                                            data: DataSet[LabeledVector],
-                                           initialWeightsDS: DataSet[WeightVector],
+                                           initialWeightsDS: DataSet[RecommenderWeights],
                                            numberOfIterations: Int,
                                            regularizationConstant: Double,
                                            learningRate: Double,
                                            lossFunction: LossFunction,
                                            optimizationMethod: LearningRateMethodTrait)
-  : DataSet[WeightVector] = {
+  : DataSet[RecommenderWeights] = {
     initialWeightsDS.iterate(numberOfIterations) {
       weightVectorDS => {
         SGDStep(data,
@@ -182,14 +191,14 @@ abstract class GradientDescent extends IterativeSolver {
     * @param currentWeights A Dataset with the current weights to be optimized as its only element
     * @return A Dataset containing the weights after one stochastic gradient descent step
     */
-  private def SGDStep(
+  def SGDStep(
                        data: DataSet[(LabeledVector)],
-                       currentWeights: DataSet[WeightVector],
+                       currentWeights: DataSet[RecommenderWeights],
                        lossFunction: LossFunction,
                        regularizationConstant: Double,
                        learningRate: Double,
                        learningRateMethod: LearningRateMethodTrait)
-  : DataSet[WeightVector] = {
+   : DataSet[RecommenderWeights] = {
 
     data.mapWithBcVariable(currentWeights) {
       (data, weightVector) => (lossFunction.gradient(data, weightVector), 1)
