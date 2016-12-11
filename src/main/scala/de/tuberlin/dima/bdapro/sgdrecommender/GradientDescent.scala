@@ -50,14 +50,21 @@ import org.apache.flink.ml.optimization.{IterativeSolver, LossFunction}
   */
 abstract class GradientDescent extends IterativeSolver {
 
+  override def optimize(
+                data: DataSet[LabeledVector],
+                initialWeights: Option[DataSet[WeightVector]]): DataSet[WeightVector] = {
+    optimize(data, None, initialWeights)
+  }
+
   /** Provides a solution for the given optimization problem
     *
     * @param data           A Dataset of LabeledVector (label, features) pairs
     * @param initialWeights The initial weights that will be optimized
     * @return The weights, optimized for the provided data.
     */
-  override def optimize(
+   def optimize(
                          data: DataSet[LabeledVector],
+                         test: Option[DataSet[LabeledVector]],
                          initialWeights: Option[DataSet[WeightVector]]): DataSet[WeightVector] = {
 
     val numberOfIterations: Int = parameters(Iterations)
@@ -85,6 +92,7 @@ abstract class GradientDescent extends IterativeSolver {
       case Some(convergence) =>
         optimizeWithConvergenceCriterion(
           data,
+          test,
           initialWeightsDS,
           numberOfIterations,
           regularizationConstant,
@@ -97,6 +105,7 @@ abstract class GradientDescent extends IterativeSolver {
 
   def optimizeWithConvergenceCriterion(
                                         dataPoints: DataSet[LabeledVector],
+                                        testDataPoints: Option[DataSet[LabeledVector]],
                                         initialWeightsDS: DataSet[WeightVector],
                                         numberOfIterations: Int,
                                         regularizationConstant: Double,
@@ -108,10 +117,19 @@ abstract class GradientDescent extends IterativeSolver {
     // We have to calculate for each weight vector the sum of squared residuals,
     // and then sum them and apply regularization
     val initialLossSumDS = calculateLoss(dataPoints, initialWeightsDS, lossFunction)
+    val initialTestLossDS = testDataPoints.map(calculateLoss(_, initialWeightsDS, lossFunction, "Test MSE: "))
 
     // Combine weight vector with the current loss
-    val initialWeightsWithLossSum = initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
-      (weights, loss) => (weights, loss)
+    val initialWeightsWithLossSum = initialTestLossDS.map{ testDS => {
+        val withTestLoss = initialWeightsDS.mapWithBcVariable(testDS)((w, l) => (w, l))
+        withTestLoss.mapWithBcVariable(initialLossSumDS) {
+          (wl, l) => (wl._1, l, wl._2)
+        }
+      }
+    }.getOrElse{
+      initialWeightsDS.mapWithBcVariable(initialLossSumDS) {
+        (weights, loss) => (weights, loss, -1.0)
+      }
     }
 
     val resultWithLoss = initialWeightsWithLossSum.iterateWithTermination(numberOfIterations) {
@@ -134,6 +152,7 @@ abstract class GradientDescent extends IterativeSolver {
           learningRateMethod)
 
         val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
+        val currentTestLossDS = testDataPoints.map(calculateLoss(_, currentWeightsDS, lossFunction, "Test MSE: "))
 
 
         // Check if the relative change in the loss is smaller than the
@@ -149,7 +168,13 @@ abstract class GradientDescent extends IterativeSolver {
         }
 
         // Result for new iteration
-        (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l)), termination)
+        currentTestLossDS.map{ testDS => {
+            val withTestLoss = currentWeightsDS.mapWithBcVariable(testDS)((w, l) => (w, l))
+            (withTestLoss.mapWithBcVariable(currentLossSumDS)((wl, l) => (wl._1, l, wl._2)), termination)
+          }
+        }.getOrElse{
+          (currentWeightsDS.mapWithBcVariable(currentLossSumDS)((w, l) => (w, l, -1.0)), termination)
+        }
     }
     // Return just the weights
     resultWithLoss.map {
@@ -263,7 +288,8 @@ abstract class GradientDescent extends IterativeSolver {
   private def calculateLoss(
                              data: DataSet[LabeledVector],
                              weightDS: DataSet[WeightVector],
-                             lossFunction: LossFunction)
+                             lossFunction: LossFunction,
+                             prefix: String = "Training MSE: ")
   : DataSet[Double] = {
     data.mapWithBcVariable(weightDS) {
       (data, weightVector) => (lossFunction.loss(data, weightVector), 1)
@@ -272,7 +298,7 @@ abstract class GradientDescent extends IterativeSolver {
     }.map {
       lossCount => {
         val loss = lossCount._1 / lossCount._2
-        println(s"Training MSE: $loss")
+        println(prefix + s"$loss")
         loss
       }
     }

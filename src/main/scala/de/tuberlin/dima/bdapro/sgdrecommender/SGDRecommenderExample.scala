@@ -38,7 +38,7 @@ object SGDRecommenderExample extends App{
   val numberOfItems = 1682
   val numberOfFactors = 40
 
-  val predictor = new RecommenderPrediction(numberOfUsers, numberOfItems, numberOfFactors)
+  val predictor = new RecommenderPredictionWithBias(numberOfUsers, numberOfItems, numberOfFactors)
   val lossFunction = GenericLossFunction(SquaredLoss, predictor)
 
   val sgd = GradientDescentL2()
@@ -51,16 +51,20 @@ object SGDRecommenderExample extends App{
   //.setLearningRateMethod(LearningRateMethod.Xu(-0.75))
 
   val r = new Random(1000L)
-  val w0 = (0 to ((numberOfUsers + numberOfItems) * numberOfFactors)).map(_ => r.nextGaussian() * 1 / numberOfFactors).toArray
+  //val w0 = (0 to ((numberOfUsers + numberOfItems) * numberOfFactors)).map(_ => r.nextGaussian() * 1 / numberOfFactors).toArray
+  val w0 = (0 to ((numberOfUsers + numberOfItems) * (numberOfFactors + 1))).map(x => {
+    if (x % (numberOfFactors + 1) == 0) 0.0
+    else r.nextGaussian() * 1 / numberOfFactors
+  }).toArray
   val initialWeights = Some(env.fromCollection(Some(new WeightVector(DenseVector(w0), 0.0))))
 
-  val weights = sgd.optimize(training, initialWeights)
-  //weights.print()
+  val weights = sgd.optimize(training, Some(test), initialWeights)
+  weights.print()
 
-  test.cross(weights)
-    .map(x => (predictor.predict(x._1.vector, x._2), x._1.label, x._2))
-    .map(x =>(((SquaredLoss.loss(x._1, x._2)) / 20000), 1))
-    .sum(0)
-    .print()
+//  test.cross(weights)
+//    .map(x => (predictor.predict(x._1.vector, x._2), x._1.label, x._2))
+//    .map(x =>(((SquaredLoss.loss(x._1, x._2)) / 20000), 1))
+//    .sum(0)
+//    .print()
 
 }

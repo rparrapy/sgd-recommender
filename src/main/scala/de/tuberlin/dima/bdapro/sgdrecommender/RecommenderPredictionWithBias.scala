@@ -1,20 +1,19 @@
 package de.tuberlin.dima.bdapro.sgdrecommender
 
 import org.apache.flink.ml.common.WeightVector
-import org.apache.flink.ml.math.{DenseVector, Vector}
+import org.apache.flink.ml.math.{BLAS, DenseVector, Vector}
 import org.apache.flink.ml.optimization.PredictionFunction
-import org.apache.flink.ml.math.BLAS
-
 
 /**
-  * Created by rparra on 10/12/16.
+  * Created by rparra on 11/12/16.
   */
-case class RecommenderPrediction(numberOfUsers: Int, numberOfItems: Int, numberOfFactors: Int) extends PredictionFunction{
+case class RecommenderPredictionWithBias(numberOfUsers: Int, numberOfItems: Int, numberOfFactors: Int) extends PredictionFunction{
   val itemsMatrixOffset = numberOfUsers * numberOfFactors
 
   override def predict(features: Vector, weights: WeightVector): Double = {
     val (userWeights, itemWeights) = getWeightVectors(features, weights)
-    BLAS.dot(userWeights, itemWeights)
+    val (userBias, itemBias) = getBiases(features, weights)
+    BLAS.dot(userWeights, itemWeights) + userBias + itemBias + weights.intercept
   }
 
   /**
@@ -34,6 +33,8 @@ case class RecommenderPrediction(numberOfUsers: Int, numberOfItems: Int, numberO
       gradient(userOffset + i) = itemWeights(i)
       gradient(itemsMatrixOffset + itemOffset + i) = userWeights(i)
     }
+    gradient(userOffset + numberOfFactors) = 1.0
+    gradient(itemsMatrixOffset + itemOffset + numberOfFactors) = 1.0
 
     WeightVector(gradient, 0)
   }
@@ -46,11 +47,19 @@ case class RecommenderPrediction(numberOfUsers: Int, numberOfItems: Int, numberO
     (DenseVector(userWeights), DenseVector(itemWeights))
   }
 
+  private def getBiases(features: Vector, weights: WeightVector) = {
+    val (userOffset, itemOffset) = getOffsets(features)
+    val userBias = weights.weights(userOffset + numberOfFactors)
+    val itemBias =  weights.weights(itemsMatrixOffset + itemOffset + numberOfFactors)
+    (userBias, itemBias)
+  }
+
   private def getOffsets(features: Vector) = {
     val user = features(0).toInt
     val item = features(1).toInt
-    val userOffset = (user - 1) * numberOfFactors
-    val itemOffset = (item - 1) * numberOfFactors
+    val userOffset = (user - 1) * (numberOfFactors + 1)
+    val itemOffset = (item - 1) * (numberOfFactors + 1)
     (userOffset, itemOffset)
   }
 }
+
