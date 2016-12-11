@@ -18,12 +18,14 @@
 
 package de.tuberlin.dima.bdapro.sgdrecommender
 
+import de.tuberlin.dima.bdapro.sgdrecommender.IterativeSolver.{ConvergenceThreshold, Iterations, LearningRate, LearningRateMethodValue}
+import de.tuberlin.dima.bdapro.sgdrecommender.LearningRateMethod.LearningRateMethodTrait
 import org.apache.flink.api.scala.DataSet
 import org.apache.flink.ml.common._
-import org.apache.flink.ml.math.{SparseVector, DenseVector}
+import org.apache.flink.ml.math.{DenseVector, SparseVector}
 import org.apache.flink.api.scala._
-import org.apache.flink.ml.optimization.IterativeSolver._
-import org.apache.flink.ml.optimization.LearningRateMethod.LearningRateMethodTrait
+
+import scala.util.Random
 
 /** Base class for optimization algorithms
  *
@@ -38,42 +40,46 @@ abstract class Solver extends Serializable with WithParameters {
     * @return A Vector of weights optimized to the given problem
     */
   def optimize(
-      data: DataSet[LabeledVector],
-      initialWeights: Option[DataSet[RecommenderWeights]],
-      f: DataSet[Int])
+                data: DataSet[LabeledVector],
+                initialWeights: Option[DataSet[RecommenderWeights]],
+                f: DataSet[Int],
+                nItems: Int,
+                nUsers: Int)
     : DataSet[RecommenderWeights]
 
-  /** Creates initial weights vector, creating a DataSet with a WeightVector element
-    *
-    * @param initialWeights An Option that may contain an initial set of weights
-    * @param data The data for which we optimize the weights
-    * @return A DataSet containing a single WeightVector element
-    */
 
   def createInitialWeightsDS(initialWeights: Option[DataSet[RecommenderWeights]],
-                                        f: DataSet[Int]): DataSet[RecommenderWeights] = {
+                             f: DataSet[Int],
+                             nItems: Int,
+                             nUsers: Int): DataSet[RecommenderWeights] = {
+    def iterativeInit(wv: Array[WeightVector]): Array[WeightVector] = {
+      if (wv.nonEmpty) {
+        val denseItemWeights = wv.head.weights match {
+          case dv: DenseVector => dv
+          case sv: SparseVector => sv.toDenseVector
+        }
+        val itemWeightVector = WeightVector(denseItemWeights, wv.head.intercept)
+
+        itemWeightVector +: iterativeInit(wv.tail)
+      }
+
+      Array.empty[WeightVector]
+    }
+
     // TODO: Faster way to do this?
     initialWeights match {
       // Ensure provided weight vector is a DenseVector
       case Some(wvDS) =>
         wvDS.map {
           wv => {
-            val denseItemWeights = wv.itemWeights.weights match {
-              case dv: DenseVector => dv
-              case sv: SparseVector => sv.toDenseVector
-            }
-            val itemWeightVector = WeightVector(denseItemWeights, wv.itemWeights.intercept)
 
-            val denseUserWeights = wv.userWeights.weights match {
-              case dv: DenseVector => dv
-              case sv: SparseVector => sv.toDenseVector
-            }
-            val userWeightVector = WeightVector(denseUserWeights, wv.userWeights.intercept)
+            val denseItemWeights = iterativeInit(wv.itemWeights)
+            val denseUserWeights = iterativeInit(wv.userWeights)
 
-            RecommenderWeights(itemWeightVector, userWeightVector)
+            RecommenderWeights(denseItemWeights, denseUserWeights, wv.intercept)
           }
         }
-      case None => createInitialWeightVector(f)
+      case None => createInitialWeightVector(f, nItems, nUsers)
     }
   }
 
@@ -84,13 +90,16 @@ abstract class Solver extends Serializable with WithParameters {
     *                    vector
     * @return DataSet of a zero vector of dimension d
     */
-  def createInitialWeightVector(dimensionDS: DataSet[Int]): DataSet[RecommenderWeights] = {
+  def createInitialWeightVector(dimensionDS: DataSet[Int], nItems: Int, nUsers: Int): DataSet[RecommenderWeights] = {
+    val rand = new Random(1000L)
     dimensionDS.map {
       dimension =>
-        val values = Array.fill(dimension)(0.0)
-        val itemWeightVector = WeightVector(DenseVector(values), 0.0)
-        val userWeightVector = WeightVector(DenseVector(values), 0.0)
-        RecommenderWeights(itemWeightVector, userWeightVector)
+        val itemValues = Array.fill(dimension)(rand.nextGaussian / dimension)
+        val userValues = Array.fill(dimension)(rand.nextGaussian / dimension)
+        val itemWeightVector = Array.fill(nItems)(WeightVector(DenseVector(itemValues), 0))
+        val userWeightVector = Array.fill(nUsers)(WeightVector(DenseVector(userValues), 0))
+
+        RecommenderWeights(itemWeightVector, userWeightVector, 3.52986)
     }
   }
 

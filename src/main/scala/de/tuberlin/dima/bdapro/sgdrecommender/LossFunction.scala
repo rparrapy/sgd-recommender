@@ -50,7 +50,7 @@ trait LossFunction extends Serializable {
     * @param weightVector
     * @return
     */
-  def gradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): RecommenderWeights= {
+  def gradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (WeightVector, WeightVector) = {
     lossGradient(dataPoint, weightVector)._2
   }
 
@@ -60,7 +60,7 @@ trait LossFunction extends Serializable {
     * @param weightVector
     * @return
     */
-  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, RecommenderWeights)
+  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, (WeightVector, WeightVector))
 }
 
 /** Generic loss function which lets you build a loss function out of the [[org.apache.flink.ml.optimization.PartialLossFunction]]
@@ -80,18 +80,33 @@ case class GenericLossFunction(
     * @param weightVector
     * @return
     */
-  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, RecommenderWeights) = {
-    val prediction = predictionFunction.predict(weightVector)
+  def lossGradient(dataPoint: LabeledVector, weightVector: RecommenderWeights): (Double, (WeightVector, WeightVector)) = {
+    val itemIndex = dataPoint.vector.apply(1).toInt
+    val userIndex = dataPoint.vector.apply(0).toInt
+
+    val prediction = predictionFunction.predict((weightVector.itemWeights.apply(itemIndex - 1),
+                                                weightVector.userWeights.apply(userIndex - 1),
+                                                weightVector.intercept))
 
     val loss = partialLossFunction.loss(prediction, dataPoint.label)
 
+//    println("***********************")
+//    println("item, user = " + itemIndex + "," + userIndex)
+//    println("prediction = " + prediction)
+//    println("loss = " + loss )
+//    println("***********************")
+
     val lossDerivative = partialLossFunction.derivative(prediction, dataPoint.label)
 
-    val weightGradient = predictionFunction.gradient(weightVector)
+    val weightGradient = predictionFunction.gradient((weightVector.itemWeights.apply(itemIndex - 1),
+                                                weightVector.userWeights.apply(userIndex - 1)))
 
-    BLAS.scal(lossDerivative, weightGradient.itemWeights.weights)
-    BLAS.scal(lossDerivative, weightGradient.userWeights.weights)
+    val itemIntercept = weightGradient._1.intercept * lossDerivative
+    val userIntercept = weightGradient._2.intercept * lossDerivative
+    BLAS.scal(lossDerivative, weightGradient._1.weights)
+    BLAS.scal(lossDerivative, weightGradient._2.weights)
 
-    (loss, weightGradient)
+
+    (loss, (WeightVector(weightGradient._1.weights, itemIntercept), WeightVector(weightGradient._2.weights, userIntercept)))
   }
 }

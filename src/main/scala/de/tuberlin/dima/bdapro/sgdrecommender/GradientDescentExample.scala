@@ -26,23 +26,23 @@ object GradientDescentExample extends App{
 
   val training = data.filter(_._1.replace("\"", "").toInt <= 150).map(toLabeledVector)
   val test = data.filter(_._1.replace("\"", "").toInt > 150).map(toLabeledVector)
-  val lossFunction = GenericLossFunction(SquaredLoss, LinearPrediction)
+//  val lossFunction = GenericLossFunction(SquaredLoss, LinearPrediction)
 
-  //training.print()
-  val sgd = SimpleGradientDescent()
-    .setLossFunction(lossFunction)
-    //.setRegularizationConstant(0.2)
-    .setIterations(1000)
-    .setStepsize(0.0001)
-    .setConvergenceThreshold(0.001)
-    //.setLearningRateMethod(LearningRateMethod.Xu(-0.75))
-
-  val initialWeights = Some(env.fromCollection(Some(new WeightVector(DenseVector.zeros(3), 0.0))))
-  val weights = sgd.optimize(training, initialWeights)
-
-  test.cross(weights)
-    .map(x => (x._1.vector.dot(x._2.weights), x._1.label, x._2))
-    .map(x =>(((SquaredLoss.loss(x._1, x._2)) / 50), x._3))
-    .sum(0)
-    .print()
+//  //training.print()
+//  val sgd = SimpleGradientDescent()
+//    .setLossFunction(lossFunction)
+//    //.setRegularizationConstant(0.2)
+//    .setIterations(1000)
+//    .setStepsize(0.0001)
+//    .setConvergenceThreshold(0.001)
+//    //.setLearningRateMethod(LearningRateMethod.Xu(-0.75))
+//
+//  val initialWeights = Some(env.fromCollection(Some(new WeightVector(DenseVector.zeros(3), 0.0))))
+//  val weights = sgd.optimize(training, initialWeights)
+//
+//  test.cross(weights)
+//    .map(x => (x._1.vector.dot(x._2.weights), x._1.label, x._2))
+//    .map(x =>(((SquaredLoss.loss(x._1, x._2)) / 50), x._3))
+//    .sum(0)
+//    .print()
 }

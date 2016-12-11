@@ -19,22 +19,25 @@
 package de.tuberlin.dima.bdapro.sgdrecommender
 
 import org.apache.flink.ml.common.WeightVector
-import org.apache.flink.ml.math.{Vector => FlinkVector, BLAS}
+import org.apache.flink.ml.math.{BLAS, VectorBuilder, Vector => FlinkVector}
 
 /** An abstract class for prediction functions to be used in optimization **/
 abstract class PredictionFunction extends Serializable {
-  def predict(weights: RecommenderWeights): Double
+  def predict(weights: (WeightVector, WeightVector, Double)): Double
 
-  def gradient(weights: RecommenderWeights): RecommenderWeights
+  def gradient(weights: (WeightVector, WeightVector)): (WeightVector, WeightVector)
 }
 
 /** A linear prediction function **/
 object RecommenderPrediction extends PredictionFunction {
-  override def predict(weightVector: RecommenderWeights): Double = {
-    BLAS.dot(weightVector.itemWeights.weights, weightVector.userWeights.weights)
+  override def predict(weight: (WeightVector, WeightVector, Double)): Double = {
+    BLAS.dot(weight._1.weights, weight._2.weights) + weight._1.intercept + weight._2.intercept + weight._3
   }
 
-  override def gradient(weights: RecommenderWeights): RecommenderWeights= {
-    RecommenderWeights(weights.userWeights, weights.itemWeights)
+  override def gradient(weight: (WeightVector, WeightVector)): (WeightVector, WeightVector) = {
+    val gradientItem = WeightVector(weight._2.weights.copy, 1)
+    val gradientUser = WeightVector(weight._1.weights.copy, 1)
+
+    (gradientItem, gradientUser)
   }
 }
