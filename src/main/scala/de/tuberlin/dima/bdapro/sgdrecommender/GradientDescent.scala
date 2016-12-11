@@ -69,6 +69,7 @@ abstract class GradientDescent extends IterativeSolver {
     // Initialize weights
     val initialWeightsDS: DataSet[WeightVector] = createInitialWeightsDS(initialWeights, data)
 
+
     // Perform the iterations
     convergenceThresholdOption match {
       // No convergence criterion
@@ -134,6 +135,7 @@ abstract class GradientDescent extends IterativeSolver {
 
         val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
 
+
         // Check if the relative change in the loss is smaller than the
         // convergence threshold. If yes, then terminate i.e. return empty termination data set
         val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
@@ -190,7 +192,6 @@ abstract class GradientDescent extends IterativeSolver {
                        learningRate: Double,
                        learningRateMethod: LearningRateMethodTrait)
   : DataSet[WeightVector] = {
-
     data.mapWithBcVariable(currentWeights) {
       (data, weightVector) => (lossFunction.gradient(data, weightVector), 1)
     }.reduce {
@@ -216,7 +217,7 @@ abstract class GradientDescent extends IterativeSolver {
       (gradientCount, weightVector, iteration) => {
         val (WeightVector(weights, intercept), count) = gradientCount
 
-        BLAS.scal(1.0 / count, weights)
+        //BLAS.scal(1.0 / count, weights)
 
         val gradient = WeightVector(weights, intercept / count)
         val effectiveLearningRate = learningRateMethod.calculateLearningRate(
@@ -269,7 +270,11 @@ abstract class GradientDescent extends IterativeSolver {
     }.reduce {
       (left, right) => (left._1 + right._1, left._2 + right._2)
     }.map {
-      lossCount => lossCount._1 / lossCount._2
+      lossCount => {
+        val loss = lossCount._1 / lossCount._2
+        println(s"Training MSE: $loss")
+        loss
+      }
     }
   }
 }

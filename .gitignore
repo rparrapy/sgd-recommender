@@ -23,3 +23,6 @@ project/plugins/project/
 # IntelliJ IDEA specific
 .idea
 *.iml
+*.data
+*.base
+*.test
