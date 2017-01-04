@@ -37,6 +37,7 @@ object SGDRecommenderExample extends App{
   val numberOfUsers = 943
   val numberOfItems = 1682
   val numberOfFactors = 40
+  val meanRating = 3.526463
 
   val predictor = new RecommenderPredictionWithBias(numberOfUsers, numberOfItems, numberOfFactors)
   val lossFunction = GenericLossFunction(SquaredLoss, predictor)
@@ -44,7 +45,7 @@ object SGDRecommenderExample extends App{
   val sgd = GradientDescentL2()
     .setLossFunction(lossFunction)
     .setRegularizationConstant(0.01)
-    .setIterations(20)
+    .setIterations(200)
     .setStepsize(0.001)
     .setLearningRateMethod(LearningRateMethod.Constant)
     .setConvergenceThreshold(0.0)
@@ -56,7 +57,7 @@ object SGDRecommenderExample extends App{
     if (x % (numberOfFactors + 1) == 0) 0.0
     else r.nextGaussian() * 1 / numberOfFactors
   }).toArray
-  val initialWeights = Some(env.fromCollection(Some(new WeightVector(DenseVector(w0), 0.0))))
+  val initialWeights = Some(env.fromCollection(Some(new WeightVector(DenseVector(w0), meanRating))))
 
   val weights = sgd.optimize(training, Some(test), initialWeights)
   weights.print()

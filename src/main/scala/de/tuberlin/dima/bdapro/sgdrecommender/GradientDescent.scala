@@ -154,7 +154,6 @@ abstract class GradientDescent extends IterativeSolver {
         val currentLossSumDS = calculateLoss(dataPoints, currentWeightsDS, lossFunction)
         val currentTestLossDS = testDataPoints.map(calculateLoss(_, currentWeightsDS, lossFunction, "Test MSE: "))
 
-
         // Check if the relative change in the loss is smaller than the
         // convergence threshold. If yes, then terminate i.e. return empty termination data set
         val termination = previousLossSumDS.filterWithBcVariable(currentLossSumDS) {
