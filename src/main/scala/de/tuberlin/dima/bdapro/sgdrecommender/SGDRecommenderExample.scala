@@ -45,10 +45,10 @@ object SGDRecommenderExample extends App{
   val sgd = RedisGradientDescentL2()
     .setLossFunction(lossFunction)
     .setRegularizationConstant(0.001)
-    .setIterations(25)
+    .setIterations(125)
     .setStepsize(0.001)
     .setLearningRateMethod(LearningRateMethod.Constant)
-    //.setConvergenceThreshold(0.0)
+  //.setConvergenceThreshold(0.0)
   //.setLearningRateMethod(LearningRateMethod.Xu(-0.75))
 
 //  val r = new Random(1000L)
