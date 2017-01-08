@@ -94,10 +94,8 @@ abstract class Solver extends Serializable with WithParameters {
     val rand = new Random(1000L)
     dimensionDS.map {
       dimension =>
-        val itemValues = Array.fill(dimension)(rand.nextGaussian / dimension)
-        val userValues = Array.fill(dimension)(rand.nextGaussian / dimension)
-        val itemWeightVector = Array.fill(nItems)(WeightVector(DenseVector(itemValues), 0))
-        val userWeightVector = Array.fill(nUsers)(WeightVector(DenseVector(userValues), 0))
+        val itemWeightVector = Array.fill(nItems)(WeightVector(DenseVector(Array.fill(dimension)(rand.nextGaussian / dimension)), 0))
+        val userWeightVector = Array.fill(nUsers)(WeightVector(DenseVector(Array.fill(dimension)(rand.nextGaussian / dimension)), 0))
 
         RecommenderWeights(itemWeightVector, userWeightVector, 3.52986)
     }
