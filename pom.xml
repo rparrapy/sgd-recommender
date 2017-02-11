@@ -266,13 +266,11 @@ under the License.
 							</filters>
 							<!-- If you want to use ./bin/flink run <quickstart jar> uncomment the following lines.
 							This will add a Main-Class entry to the manifest file -->
-							<!--
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>de.tuberlin.dima.bdapro.sgdrecommender.StreamingJob</mainClass>
+									<mainClass>de.tuberlin.dima.bdapro.sgdrecommender.MatrixFactorizationExample</mainClass>
 								</transformer>
 							</transformers>
-						    -->
 							<createDependencyReducedPom>false</createDependencyReducedPom>
 						</configuration>
 					</execution>

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package de.tuberlin.dima.bdapro.sgdrecommender
+package de.tuberlin.dima.bdapro.sgdrecommender.DSGD
 
 import java.lang.Iterable
 

@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 
-package de.tuberlin.dima.bdapro.sgdrecommender
+package de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent
 
-
-import de.tuberlin.dima.bdapro.sgdrecommender.IterativeSolver._
-import de.tuberlin.dima.bdapro.sgdrecommender.LearningRateMethod.LearningRateMethodTrait
-import de.tuberlin.dima.bdapro.sgdrecommender.Solver.{LossFunction, RegularizationConstant}
+import Solver.{LossFunction, RegularizationConstant}
+import de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent.IterativeSolver.{ConvergenceThreshold, Iterations, LearningRate, LearningRateMethodValue}
+import de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent.LearningRateMethod.LearningRateMethodTrait
 import org.apache.flink.api.scala._
 import org.apache.flink.ml._
 import org.apache.flink.ml.common._

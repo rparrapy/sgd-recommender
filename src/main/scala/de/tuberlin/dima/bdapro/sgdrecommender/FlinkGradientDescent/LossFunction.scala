@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package de.tuberlin.dima.bdapro.sgdrecommender
+package de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent
 
 import org.apache.flink.ml.common.{LabeledVector, WeightVector}
 import org.apache.flink.ml.math.BLAS

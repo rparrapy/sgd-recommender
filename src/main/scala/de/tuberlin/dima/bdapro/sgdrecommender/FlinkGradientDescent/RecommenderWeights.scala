@@ -1,4 +1,4 @@
-package de.tuberlin.dima.bdapro.sgdrecommender
+package de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent
 
 /**
   * Created by duy on 12/9/16.

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package de.tuberlin.dima.bdapro.sgdrecommender
+package de.tuberlin.dima.bdapro.sgdrecommender.DSGD
 
 import com.github.fommil.netlib.BLAS.{getInstance => blas}
 import org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint
