@@ -31,8 +31,8 @@ object MatrixFactorizationExample extends App{
   val env  = ExecutionEnvironment.getExecutionEnvironment
 
 //  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY + YAHOO_ARTIST_NAME, fieldDelimiter = "\t")
-  val train = env.readCsvFile[(Int, Int, Double, Double)]("/home/duy/TUB/1_semester/BDAPRO/ml-100k/u1.base", fieldDelimiter = "\t")
-  val test = env.readCsvFile[(Int, Int, Double, Double)]("/home/duy/TUB/1_semester/BDAPRO/ml-100k/u1.test", fieldDelimiter = "\t")
+  val train = env.readCsvFile[(Int, Int, Double, Double)]("/Users/rparra/Workspace/tub/bdapro/ml-100k/u1.base", fieldDelimiter = "\t")
+  val test = env.readCsvFile[(Int, Int, Double, Double)]("/Users/rparra/Workspace/tub/bdapro/ml-100k/u1.test", fieldDelimiter = "\t")
 
 
   val trainData = train.map(x => (x._1, x._2, x._3))
@@ -76,26 +76,18 @@ object MatrixFactorizationExample extends App{
         .sum(0)
         .map(x => ("Test MSE", x._1))
 
-      (trainMSE, testMSE)
+      trainMSE.union(testMSE)
     }
   })
 
-  val finalResult = resultDS.reduce((left, right) => {
-    val leftTrain = left._1
-    val leftTest = left._2
-    val rightTrain = right._1
-    val rightTest =  right._2
+  val finalResult = resultDS.foldLeft(List[(String, Double)]())((left, right) => left ++ right.collect())
+  println(finalResult)
+  //finalResult.writeAsCsv(HOME_PDUY + "output_train.txt", "\n", "\t", WriteMode.OVERWRITE)
 
-    (leftTrain.union(rightTrain), leftTest.union(rightTest))
-  })
-
-  finalResult._1.writeAsCsv(HOME_PDUY + "output_train.txt", "\n", "\t", WriteMode.OVERWRITE)
-  finalResult._2.writeAsCsv(HOME_PDUY + "output_test.txt", "\n", "\t", WriteMode.OVERWRITE)
+  //  finalResult._1.writeAsCsv(HOME_PDUY + "output_train.txt", "\n", "\t", WriteMode.OVERWRITE)
+//  finalResult._2.writeAsCsv(HOME_PDUY + "output_test.txt", "\n", "\t", WriteMode.OVERWRITE)
 
 //    .print()
-
-  env.execute()
-
 //  val end = System.nanoTime()
 //
 //  println("n epochs = " + iteration)
