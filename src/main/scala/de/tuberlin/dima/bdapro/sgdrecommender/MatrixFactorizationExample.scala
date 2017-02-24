@@ -1,5 +1,7 @@
 package de.tuberlin.dima.bdapro.sgdrecommender
 
+import java.io.{BufferedWriter, File, FileWriter}
+
 import de.tuberlin.dima.bdapro.sgdrecommender.DSGD.SGDforMatrixFactorization
 import de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent.{GenericLossFunction, RecommenderPrediction}
 import org.apache.flink.api.scala._
@@ -13,7 +15,8 @@ import org.apache.flink.ml.optimization.SquaredLoss
   */
 object MatrixFactorizationExample extends App{
 
-  val HOME_PDUY = "/home/duy/TUB/"
+  val HOME_PDUY_LOCAL = "/home/duy/TUB/"
+  val HOME_PDUY_CLUSTER = "/home/pduy/"
   val HOME_ROD = "/home/rparra/"
   val YAHOO_ARTIST_TRAIN= "yahoo-artist-train.txt"
   val YAHOO_ARTIST_TEST = "yahoo-artist-test.txt"
@@ -30,10 +33,10 @@ object MatrixFactorizationExample extends App{
 
   val env  = ExecutionEnvironment.getExecutionEnvironment
 
-//  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY + YAHOO_ARTIST_NAME, fieldDelimiter = "\t")
-  val train = env.readCsvFile[(Int, Int, Double, Double)]("/Users/rparra/Workspace/tub/bdapro/ml-100k/u1.base", fieldDelimiter = "\t")
-  val test = env.readCsvFile[(Int, Int, Double, Double)]("/Users/rparra/Workspace/tub/bdapro/ml-100k/u1.test", fieldDelimiter = "\t")
-
+//  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.base", fieldDelimiter = "\t")
+//  val test = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.test", fieldDelimiter = "\t")
+  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_CLUSTER + YAHOO_ARTIST_TRAIN, fieldDelimiter = "\t")
+  val test = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_CLUSTER + YAHOO_ARTIST_TEST, fieldDelimiter = "\t")
 
   val trainData = train.map(x => (x._1, x._2, x._3))
   val trainLabel = train.map(x => (x._1 + "-" + x._2, x._3))
@@ -47,7 +50,7 @@ object MatrixFactorizationExample extends App{
 
 //  val begin = System.nanoTime()
 
-  val resultDS = (1 to 5).map({
+  val resultDS = (1 to 200).map({
     iteration => {
       val sgd = SGDforMatrixFactorization()
         .setIterations(iteration)
@@ -81,7 +84,12 @@ object MatrixFactorizationExample extends App{
   })
 
   val finalResult = resultDS.foldLeft(List[(String, Double)]())((left, right) => left ++ right.collect())
-  println(finalResult)
+
+  val file = new File(HOME_PDUY_CLUSTER + "output.txt")
+  val bw = new BufferedWriter(new FileWriter(file))
+  finalResult.foreach(result => bw.write(result._1 + "\t" + result._2 + "\n"))
+  bw.close()
+
   //finalResult.writeAsCsv(HOME_PDUY + "output_train.txt", "\n", "\t", WriteMode.OVERWRITE)
 
   //  finalResult._1.writeAsCsv(HOME_PDUY + "output_train.txt", "\n", "\t", WriteMode.OVERWRITE)
