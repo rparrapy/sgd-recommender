@@ -1,17 +1,12 @@
 package de.tuberlin.dima.bdapro.sgdrecommender
 
-import java.io.{BufferedWriter, File, FileWriter}
-
 import de.tuberlin.dima.bdapro.sgdrecommender.DSGD.SGDforMatrixFactorization
-import de.tuberlin.dima.bdapro.sgdrecommender.FlinkGradientDescent.{GenericLossFunction, RecommenderPrediction}
-import org.apache.flink.api.java.aggregation.Aggregations
-import org.apache.flink.api.java.aggregation.SumAggregationFunction.SumAggregationFunctionFactory
+import org.apache.commons.lang.StringEscapeUtils
 import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem.WriteMode
 import org.apache.flink.ml.common.LabeledVector
 import org.apache.flink.ml.math.VectorBuilder
 import org.apache.flink.ml.optimization.SquaredLoss
-import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction.AggregationType
 
 /**
   * Created by duy on 12/7/16.
@@ -39,7 +34,7 @@ object MatrixFactorizationExample extends App{
    */
   val train_file = args(0)
   val test_file = args(1)
-  val delimiter = args(2)
+  val delimiter = StringEscapeUtils.unescapeJava(args(2))
   val nBlocks = if (args.length > 3) args(3).toInt else 50
   val iterations = if (args.length > 4) args(4).toInt else 1
 
