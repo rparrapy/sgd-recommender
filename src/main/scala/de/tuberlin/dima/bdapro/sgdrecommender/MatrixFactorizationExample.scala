@@ -3,6 +3,7 @@ package de.tuberlin.dima.bdapro.sgdrecommender
 import de.tuberlin.dima.bdapro.sgdrecommender.DSGD.SGDforMatrixFactorization
 import org.apache.commons.lang.StringEscapeUtils
 import org.apache.flink.api.scala._
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.core.fs.FileSystem.WriteMode
 import org.apache.flink.ml.common.LabeledVector
 import org.apache.flink.ml.math.VectorBuilder
@@ -11,21 +12,27 @@ import org.apache.flink.ml.optimization.SquaredLoss
 /**
   * Created by duy on 12/7/16.
   */
-object MatrixFactorizationExample extends App{
+object MatrixFactorizationExample extends App {
 
   val HOME_PDUY_LOCAL = "/home/duy/TUB/"
   val HOME_PDUY_CLUSTER = "/home/hadoop/output/"
-  val HOME_ROD = "/home/rparra/"
+  val HOME_ROD = "/Users/rparra/Workspace/tub/bdapro/"
 
   val toLabeledVector = { (t: (Double, Double, Double, Double)) =>
     val features = t match {
       case (user, item, rank, _)
-      => VectorBuilder.vectorBuilder.build(user :: item :: rank :: Nil )
+      => VectorBuilder.vectorBuilder.build(user :: item :: rank :: Nil)
     }
     new LabeledVector(t._3, features)
   }
 
-  val env  = ExecutionEnvironment.getExecutionEnvironment
+  val customConfiguration = new Configuration()
+  customConfiguration.setInteger("parallelism", 8)
+  customConfiguration.setInteger("taskmanager.network.numberOfBuffers", 4096)
+  val env = ExecutionEnvironment.createLocalEnvironment(customConfiguration)
+
+
+  //val env = ExecutionEnvironment.getExecutionEnvironment
 
 
   /* params: <training file> <test file> <delimiter> <number of blocks> <number of iterations>
@@ -90,7 +97,7 @@ object MatrixFactorizationExample extends App{
     .map(x => (2 * SquaredLoss.loss(x._1._1._2, x._1._2._2) / x._2, 1))
     .sum(0)
     .map(x => ("Train MSE", x._1))
-    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_train", "\n", "\t", WriteMode.OVERWRITE)
+    .writeAsCsv(HOME_ROD + "pduy_output_train", "\n", "\t", WriteMode.OVERWRITE)
 
   val testMSE = testPredictions.map(x => (x._1 + "-" + x._2, x._3))
     .join(testLabel)
@@ -101,7 +108,7 @@ object MatrixFactorizationExample extends App{
     .sum(0)
     .map(x => ("Test MSE", x._1))
     //        .print
-    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_test", "\n", "\t", WriteMode.OVERWRITE)
+    .writeAsCsv(HOME_ROD + "pduy_output_test", "\n", "\t", WriteMode.OVERWRITE)
 
   env.execute("Writing")
 

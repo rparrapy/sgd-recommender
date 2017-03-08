@@ -18,10 +18,9 @@
 
 package de.tuberlin.dima.bdapro.sgdrecommender.DSGD
 
-import java.lang.Iterable
-
 import com.github.fommil.netlib.BLAS.{getInstance => blas}
-import org.apache.flink.api.common.functions.{RichCoGroupFunction, RichMapFunction}
+import org.apache.flink.api.common.functions.{RichFlatJoinFunction, RichMapFunction}
+import org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint
 import org.apache.flink.api.scala._
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.ml.common._
@@ -29,10 +28,11 @@ import org.apache.flink.ml.optimization.LearningRateMethod.{Default, LearningRat
 import org.apache.flink.ml.pipeline.FitOperation
 import org.apache.flink.util.Collector
 
-import scala.collection.JavaConverters._
 import scala.util.Random
 
+
 class SGDforMatrixFactorization extends MatrixFactorization[SGDforMatrixFactorization] {
+
   import SGDforMatrixFactorization._
 
   /** Sets the initial learning rate for the algorithm.
@@ -43,7 +43,9 @@ class SGDforMatrixFactorization extends MatrixFactorization[SGDforMatrixFactoriz
   def setLearningRate(learningRate: Double): SGDforMatrixFactorization = {
     parameters.add(LearningRate, learningRate)
     this
-  } /** Sets the method for gradually decreasing the learning rate.
+  }
+
+  /** Sets the method for gradually decreasing the learning rate.
     *
     * @param learningRateMethod
     * @return
@@ -53,7 +55,6 @@ class SGDforMatrixFactorization extends MatrixFactorization[SGDforMatrixFactoriz
     parameters.add(LearningRateMethod, learningRateMethod)
     this
   }
-
 }
 
 object SGDforMatrixFactorization {
@@ -80,7 +81,7 @@ object SGDforMatrixFactorization {
   /**
     * Representation of a rating in a rating block.
     *
-    * @param rating Value of rating.
+    * @param rating  Value of rating.
     * @param userIdx Index of user vector in the corresponding user block.
     * @param itemIdx Index of item vector in the corresponding item block.
     */
@@ -101,7 +102,7 @@ object SGDforMatrixFactorization {
   /**
     * Representation of a rating block.
     *
-    * @param id Identifier of the block.
+    * @param id    Identifier of the block.
     * @param block Array containing the ratings corresponding to the block.
     */
   case class RatingBlock(id: RatingBlockId, block: Array[RatingInfo])
@@ -109,13 +110,13 @@ object SGDforMatrixFactorization {
   /**
     * Representation of a factor block.
     *
-    * @param factorBlockId Identifier of the block.
+    * @param factorBlockId      Identifier of the block.
     * @param currentRatingBlock Id of the rating block with which we are currently computing the
     *                           gradients
-    * @param isUser Boolean marking whether it's a user or item block.
-    * @param factors Array containing the vectors corresponding to the block.
-    * @param omegas Array containing the omegas for every factor,
-    *               i.e. the number of occurrences of that factor in the ratings.
+    * @param isUser             Boolean marking whether it's a user or item block.
+    * @param factors            Array containing the vectors corresponding to the block.
+    * @param omegas             Array containing the omegas for every factor,
+    *                           i.e. the number of occurrences of that factor in the ratings.
     */
   case class FactorBlock(factorBlockId: FactorBlockId,
                          currentRatingBlock: RatingBlockId,
@@ -127,7 +128,7 @@ object SGDforMatrixFactorization {
     * Information for unblocking the factors at the end of the algorithm.
     *
     * @param factorBlockId Id of the factor block.
-    * @param factorIds Ids of the factors in the corresponding factor block.
+    * @param factorIds     Ids of the factors in the corresponding factor block.
     */
   case class UnblockInformation(factorBlockId: FactorBlockId, factorIds: Array[Int])
 
@@ -206,14 +207,14 @@ object SGDforMatrixFactorization {
         // matching the indices in the factor blocks (user and item) with the ratings
         // and creating rating block ids
         .map(_ match {
-          case (((user, item, rating), (_, userIdx, userBlockId)), (_, itemIdx, itemBlockId)) =>
-            (toRatingBlockId(userBlockId, itemBlockId, numBlocks),
-              RatingInfo(rating, userIdx, itemIdx),
-              // todo maybe eliminate this last item, only needed for deterministic result
-              (user, item))
-        })
+        case (((user, item, rating), (_, userIdx, userBlockId)), (_, itemIdx, itemBlockId)) =>
+          (toRatingBlockId(userBlockId, itemBlockId, numBlocks),
+            RatingInfo(rating, userIdx, itemIdx),
+            // todo maybe eliminate this last item, only needed for deterministic result
+            (user, item))
+      })
         .withForwardedFields("_1._2._2->_2.userIdx", "_2._2->_2.itemIdx", "_1._1._3->_2.rating",
-        "_1._1._1->_3._1", "_1._1._2->_3._2")
+          "_1._1._1->_3._1", "_1._1._2->_3._2")
         // grouping by the rating block ids and constructing rating blocks
         .groupBy(0)
         .reduceGroup {
@@ -307,9 +308,11 @@ object SGDforMatrixFactorization {
           val piqj = rij - blas.ddot(pi.length, pi, 1, qj, 1)
 
           val newPi = pi.zip(qj).map { case (p, q) =>
-            p - effectiveLearningRate * (lambda / omegai * p - piqj * q) }
+            p - effectiveLearningRate * (lambda / omegai * p - piqj * q)
+          }
           val newQj = pi.zip(qj).map { case (p, q) =>
-            q - effectiveLearningRate * (lambda / omegaj * q - piqj * p) }
+            q - effectiveLearningRate * (lambda / omegaj * q - piqj * p)
+          }
 
           users(rating.userIdx) = newPi
           items(rating.itemIdx) = newQj
@@ -329,73 +332,61 @@ object SGDforMatrixFactorization {
       * @return Optional user and item blocks and the current rating block id.
       */
     def extractUserItemBlock(factorBlocks: Iterator[FactorBlock]):
-      (Option[FactorBlock], Option[FactorBlock], RatingBlockId) = {
+    (FactorBlock, FactorBlock, RatingBlockId) = {
       val b1 = factorBlocks.next()
-      val b2 = factorBlocks.toIterable.headOption
+      /*
+        we would like b2 to be null if needed, but Flink does not allow it
+        @see https://github.com/apache/flink/pull/2723
+        So, we use a dummy value instead of null
+       */
+      val nullFactorBlock = new FactorBlock(-1, -1, false, Array(), Array())
+      val b2 = factorBlocks.toIterable.headOption.getOrElse(nullFactorBlock)
 
       if (b1.isUser) {
-        (Some(b1), b2, b1.currentRatingBlock)
+        (b1, b2, b1.currentRatingBlock)
       } else {
-        (b2, Some(b1), b1.currentRatingBlock)
+        (b2, b1, b1.currentRatingBlock)
       }
     }
 
-    // todo Consider left outer join.
-    //   - pros
-    //      . it would eliminate rating block check (no need to "invoke" unused rating block)
-    //      . flexible underlying implementation (shipping/local strategy)
-    //   - cons
-    //      . has to aggregate the two factor blocks in the join function
-    // Matching the user and item blocks to the current rating block.
-    userItem.coGroup(ratingBlocks)
-      .where(factorBlock => factorBlock.currentRatingBlock)
-      .equalTo(ratingBlock => ratingBlock.id).apply(
-      new RichCoGroupFunction[FactorBlock, RatingBlock, FactorBlock] {
+    //type ExtractedUserItem = (FactorBlock, FactorBlock, RatingBlockId)
 
-        override def coGroup(factorBlocksJava: Iterable[FactorBlock],
-                             ratingBlocksJava: Iterable[RatingBlock],
-                             out: Collector[FactorBlock]): Unit = {
+    userItem
+      .groupBy("currentRatingBlock")
+      .reduceGroup(iter => extractUserItemBlock(iter))
+      //.withForwardedFields("currentRatingBlock->_3")
+      .leftOuterJoin(ratingBlocks, JoinHint.REPARTITION_HASH_SECOND).where("_3").equalTo("id")
+      .apply(
+        new RichFlatJoinFunction[(FactorBlock, FactorBlock, RatingBlockId), RatingBlock, FactorBlock] {
+          override def join(userItem: (FactorBlock, FactorBlock, RatingBlockId),
+                            ratingBlock: RatingBlock,
+                            out: Collector[FactorBlock]): Unit = {
 
-          val factorBlocks = factorBlocksJava.asScala.iterator
-          val ratingBlocks = ratingBlocksJava.asScala.iterator
+            // this is very hacky, but we need to work around a Flink serialization issue
+            val toNullable = (f: FactorBlock) => if (f.factorBlockId >= 0) f else null
 
-          // We only need to update factors by the current rating block
-          // if there are factors matched to that rating block.
-          if (factorBlocks.hasNext) {
-            // There are factors matched to the current rating block,
-            // so we are updating those factors by the current rating block.
+            val optionUserItem = (Option(toNullable(userItem._1)), Option(toNullable(userItem._2)), userItem._3)
+            val currentRatingBlock = optionUserItem._3
+            val (nextP, nextQ) = nextRatingBlock(currentRatingBlock, numBlocks)
 
-            // There are two factor blocks, one user and one item.
-            // One of them might be missing when there is no rating block,
-            // so we use options.
-            val (userBlock, itemBlock, currentRatingBlock) = extractUserItemBlock(factorBlocks)
+            val currentIteration = getIterationRuntimeContext.getSuperstepNumber / numBlocks
 
             val (updatedUserBlock, updatedItemBlock) =
-              if (ratingBlocks.hasNext) {
-                // there is one rating block
-                val ratingBlock = ratingBlocks.next()
-
-                val currentIteration = getIterationRuntimeContext.getSuperstepNumber / numBlocks
-
-                val (userB, itemB) =
-                  updateLocalFactors(ratingBlock, userBlock.get, itemBlock.get, currentIteration)
-
-                (Some(userB), Some(itemB))
-              } else {
-                // There are no ratings in the current block, so we do not update the factors,
-                // just pass them forward.
-
-                (userBlock, itemBlock)
+              optionUserItem match {
+                case (Some(userBlock), Some(itemBlock), _) =>
+                  val (u, i) =
+                    updateLocalFactors(ratingBlock, userBlock, itemBlock, currentIteration)
+                  (Some(u), Some(i))
+                case (optUser, optItem, _) => (optUser, optItem)
               }
 
-            // calculating the next rating block for the factor blocks
-            val (newP, newQ) = nextRatingBlock(currentRatingBlock, numBlocks)
-
-            updatedUserBlock.foreach(x => out.collect(x.copy(currentRatingBlock = newP)))
-            updatedItemBlock.foreach(x => out.collect(x.copy(currentRatingBlock = newQ)))
+            updatedUserBlock.foreach(x => out.collect(x.copy(currentRatingBlock = nextP)))
+            updatedItemBlock.foreach(x => out.collect(x.copy(currentRatingBlock = nextQ)))
           }
-        }
-      }).withForwardedFieldsFirst("factorBlockId", "isUser", "omegas")
+        })
+      // cannot forward these with left outer join
+      .withForwardedFieldsFirst("_1.factorBlockId->factorBlockId", "_1.isUser->isUser", "_1.omegas->omegas")
+
   }
 
   // =============================== Block helper functions ========================================
@@ -404,10 +395,10 @@ object SGDforMatrixFactorization {
     * Initializes blocks for one factor matrix (either user or item).
     *
     * @param factorIdsForRatings [[DataSet]] containing the ids of the factors.
-    * @param isUser Indicates whether it's a user or item matrix.
-    * @param numBlocks Number of matrix blocks.
-    * @param seed Random seed
-    * @param factors Number of factors.
+    * @param isUser              Indicates whether it's a user or item matrix.
+    * @param numBlocks           Number of matrix blocks.
+    * @param seed                Random seed
+    * @param factors             Number of factors.
     * @return Three [[DataSet]]s: the factor blocks,
     *         the factor ids matched to their index in the factor block,
     *         and the information for unblocking.
@@ -438,7 +429,7 @@ object SGDforMatrixFactorization {
 
     val factorCounts = factorIdsForRatings
       .map((_, 1))
-        .withForwardedFields("*->_1")
+      .withForwardedFields("*->_1")
       .groupBy(0)
       .sum(1)
 
@@ -507,7 +498,7 @@ object SGDforMatrixFactorization {
     * returning the next rating block ids for the current user factor block and item factor block.
     *
     * @param currentRatingBlock Current rating block id.
-    * @param numFactorBlocks Number of factor blocks.
+    * @param numFactorBlocks    Number of factor blocks.
     * @return The next rating block id for the user and item blocks.
     */
   def nextRatingBlock(currentRatingBlock: RatingBlockId,
