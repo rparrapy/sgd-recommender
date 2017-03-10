@@ -355,7 +355,7 @@ object SGDforMatrixFactorization {
       .groupBy("currentRatingBlock")
       .reduceGroup(iter => extractUserItemBlock(iter))
       //.withForwardedFields("currentRatingBlock->_3")
-      .leftOuterJoin(ratingBlocks, JoinHint.REPARTITION_HASH_SECOND).where("_3").equalTo("id")
+      .leftOuterJoin(ratingBlocks).where("_3").equalTo("id")
       .apply(
         new RichFlatJoinFunction[(FactorBlock, FactorBlock, RatingBlockId), RatingBlock, FactorBlock] {
           override def join(userItem: (FactorBlock, FactorBlock, RatingBlockId),

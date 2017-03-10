@@ -27,8 +27,11 @@ object MatrixFactorizationExample extends App {
   }
 
   val customConfiguration = new Configuration()
-  customConfiguration.setInteger("parallelism", 8)
+  customConfiguration.setInteger("parallelism.default", 8)
   customConfiguration.setInteger("taskmanager.network.numberOfBuffers", 4096)
+  customConfiguration.setInteger("taskmanager.heap.mb", 12208)
+  customConfiguration.setInteger("taskmanager.numberOfTaskSlots", 8)
+  customConfiguration.setDouble("taskmanager.memory.fraction", 0.8)
   val env = ExecutionEnvironment.createLocalEnvironment(customConfiguration)
 
 
