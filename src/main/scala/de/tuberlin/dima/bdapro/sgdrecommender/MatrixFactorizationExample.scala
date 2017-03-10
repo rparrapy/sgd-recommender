@@ -38,8 +38,8 @@ object MatrixFactorizationExample extends App{
   val nBlocks = if (args.length > 3) args(3).toInt else 50
   val iterations = if (args.length > 4) args(4).toInt else 1
 
-  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.base", fieldDelimiter = "\t")
-  val test = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.test", fieldDelimiter = "\t")
+//  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.base", fieldDelimiter = "\t")
+//  val test = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-100k/u1.test", fieldDelimiter = "\t")
   //    val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-10m/r1.train", fieldDelimiter = "::")
   //    val test = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-10m/r1.test", fieldDelimiter = "::")
   //  val train = env.readCsvFile[(Int, Int, Double, Double)](HOME_PDUY_LOCAL + "1_semester/BDAPRO/ml-1m/ml-train.csv", fieldDelimiter = "::")
@@ -49,8 +49,8 @@ object MatrixFactorizationExample extends App{
   //  val train = env.readCsvFile[(Int, Int, Double )](HOME_PDUY_LOCAL + "1_semester/BDAPRO/yahoo-artist-train.txt", fieldDelimiter = "\t")
   //  val test = env.readCsvFile[(Int, Int, Double )](HOME_PDUY_LOCAL + "1_semester/BDAPRO/yahoo-artist-test.txt", fieldDelimiter = "\t")
 
-//  val train = env.readCsvFile[(Int, Int, Double)](args(0), fieldDelimiter = delimiter)
-//  val test = env.readCsvFile[(Int, Int, Double)](args(1), fieldDelimiter = delimiter)
+  val train = env.readCsvFile[(Int, Int, Double)](args(0), fieldDelimiter = delimiter)
+  val test = env.readCsvFile[(Int, Int, Double)](args(1), fieldDelimiter = delimiter)
 
   val trainData = train.map(x => (x._1, x._2, x._3))
   val trainLabel = train.map(x => (x._1 + "-" + x._2, x._3))
@@ -66,7 +66,7 @@ object MatrixFactorizationExample extends App{
 
   //  val lossFunction = GenericLossFunction(SquaredLoss, RecommenderPrediction)
 
-  //  val begin = System.nanoTime()
+//    val begin = System.nanoTime()
 
   //  val resultDS = (1 to 200).map({
   //    iteration => {
@@ -77,21 +77,21 @@ object MatrixFactorizationExample extends App{
     .setNumFactors(40)
     .setLearningRate(0.001)
     .setSeed(43L)
-    .setConvergenceThreshold(4.0)
+    .setConvergenceThreshold(0.01)
 
   sgd.fit(trainData)
-//  val trainPredictions = sgd.predict(trainData.map(x => (x._1, x._2)))
+  val trainPredictions = sgd.predict(trainData.map(x => (x._1, x._2)))
   val testPredictions = sgd.predict(testData)
 
-//  val trainMSE = trainPredictions.map(x => (x._1 + "-" + x._2, x._3))
-//    .join(trainLabel)
-//    .where(0)
-//    .equalTo(0)
-//    .cross(trainSize)
-//    .map(x => (2 * SquaredLoss.loss(x._1._1._2, x._1._2._2) / x._2, 1))
-//    .sum(0)
-//    .map(x => ("Train MSE", x._1))
-//    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_train", "\n", "\t", WriteMode.OVERWRITE)
+  val trainMSE = trainPredictions.map(x => (x._1 + "-" + x._2, x._3))
+    .join(trainLabel)
+    .where(0)
+    .equalTo(0)
+    .cross(trainSize)
+    .map(x => (2 * SquaredLoss.loss(x._1._1._2, x._1._2._2) / x._2, 1))
+    .sum(0)
+    .map(x => ("Train MSE", x._1))
+    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_train", "\n", "\t", WriteMode.OVERWRITE)
 
   val testMSE = testPredictions.map(x => (x._1 + "-" + x._2, x._3))
     .join(testLabel)
@@ -101,10 +101,10 @@ object MatrixFactorizationExample extends App{
     .map(x => (2 * SquaredLoss.loss(x._1._1._2, x._1._2._2) / x._2, 1))
     .sum(0)
     .map(x => ("Test MSE", x._1))
-    .print
-//    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_test", "\n", "\t", WriteMode.OVERWRITE)
+//    .print
+    .writeAsCsv(HOME_PDUY_CLUSTER + "pduy_output_test", "\n", "\t", WriteMode.OVERWRITE)
 
-//  env.execute("Writing")
+  env.execute("Writing")
 
   //      trainMSE.union(testMSE).print
   //    }
@@ -123,8 +123,8 @@ object MatrixFactorizationExample extends App{
   //  finalResult._2.writeAsCsv(HOME_PDUY + "output_test.txt", "\n", "\t", WriteMode.OVERWRITE)
 
   //    .print()
-  //  val end = System.nanoTime()
-  //
-  //  println("n epochs = " + iterations)
-  //  println("Elapsed Time = " + (end - begin)/1000000000 + "seconds")
+//    val end = System.nanoTime()
+//
+//    println("n epochs = " + iterations)
+//    println("Elapsed Time = " + (end - begin)/1000000000 + "seconds")
 }

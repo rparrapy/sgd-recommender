@@ -70,7 +70,6 @@ class SGDforMatrixFactorization extends MatrixFactorization[SGDforMatrixFactoriz
 object SGDforMatrixFactorization {
 
   import MatrixFactorization._
-  var count = 0
 
   // ========================================= Parameters ==========================================
 
@@ -83,7 +82,7 @@ object SGDforMatrixFactorization {
   }
 
   case object ConvergenceThreshold extends Parameter[Double] {
-    val defaultValue: Option[Double] = Some(0.01)
+    val defaultValue: Option[Double] = Some(0.0)
   }
 
   // ==================================== SGD type definitions =====================================
@@ -120,7 +119,7 @@ object SGDforMatrixFactorization {
     * @param id Identifier of the block.
     * @param block Array containing the ratings corresponding to the block.
     */
-  case class RatingBlock(id: RatingBlockId, block: Array[RatingInfo], var loss: Double, var deltaLoss: Double)
+  case class RatingBlock(id: RatingBlockId, block: Array[RatingInfo])
 
   /**
     * Representation of a factor block.
@@ -248,7 +247,7 @@ object SGDforMatrixFactorization {
             }
             val ratingBlockId = arr(0)._1
             val ratingInfos = arr.map(_._2)
-            RatingBlock(ratingBlockId, ratingInfos, Double.MaxValue, Double.MaxValue)
+            RatingBlock(ratingBlockId, ratingInfos)
         }
         .withForwardedFields("_1->id")
 
@@ -293,7 +292,7 @@ object SGDforMatrixFactorization {
                     lambda: Double,
                     numBlocks: Int,
                     seed: Option[Long],
-                    threshold: Option[Double]): (DataSet[FactorBlock], DataSet[Boolean]) = {
+                    threshold: Option[Double]): (DataSet[FactorBlock], DataSet[_]) = {
 
     /**
       * Updates one user and item block based on one corresponding rating block.
@@ -305,15 +304,13 @@ object SGDforMatrixFactorization {
                            userBlock: FactorBlock,
                            itemBlock: FactorBlock,
                            iteration: Int): (FactorBlock, FactorBlock) = {
-      count = count + 1
-      println("count = " + count)
 
       val effectiveLearningRate = learningRateMethod.calculateLearningRate(
         learningRate,
         iteration + 1,
         lambda)
 
-      val RatingBlock(ratingBlockId, ratings, _, _) = ratingBlock
+      val RatingBlock(ratingBlockId, ratings) = ratingBlock
       val FactorBlock(_, _, _, users, userOmegas, loss, _) = userBlock
       val FactorBlock(_, _, _, items, itemOmegas, _, _) = itemBlock
 
@@ -345,10 +342,16 @@ object SGDforMatrixFactorization {
       val updatedUserBlock: FactorBlock = userBlock.copy(factors = users)
       val updatedItemBlock: FactorBlock = itemBlock.copy(factors = items)
 
-      //Calculating (delta) training error for early stopping
-      val newLoss = calculateBlockLoss(ratingBlock, updatedUserBlock, updatedItemBlock)
+      if (threshold.get > 0) {
+        //Calculating (delta) training error for early stopping
+        val newLoss = calculateBlockLoss(ratingBlock, updatedUserBlock, updatedItemBlock)
 
-      (updatedUserBlock.copy(loss = newLoss, previousLoss = loss), updatedItemBlock.copy(loss = newLoss, previousLoss = loss))
+        //Assign the loss to both the item and user blocks, will divide by 2 later
+        (updatedUserBlock.copy(loss = newLoss, previousLoss = loss), updatedItemBlock.copy(loss = newLoss, previousLoss = loss))
+      } else{
+        //when threshold = 0, save CPU time by ignoring the loss computation
+        (updatedUserBlock, updatedItemBlock)
+      }
     }
 
     /**
@@ -430,18 +433,27 @@ object SGDforMatrixFactorization {
         }
       }).withForwardedFieldsFirst("factorBlockId", "isUser", "omegas")
 
-    val sumLoss = userItemDS.map(x => (x.loss, 1))
-      .sum(0)
-    val sumPreviousLoss = userItemDS.map(x => (x.previousLoss, 1))
-      .sum(0)
-    val termination = sumLoss.cross(sumPreviousLoss)
-      .map(x => {
-        println(math.abs(x._1._1 - x._2._1) / numBlocks)
+    if (threshold.get > 0) {
+      //Aggregating current losses and previous losses
+      val termination = userItemDS.map(x => (x.loss, x.previousLoss))
+        .reduce((left, right) => (left._1 + right._1, left._2 + right._2))
+        .filter(x => {
+          val currentLoss = x._1
+          val previousLoss = x._2
+//          println(math.abs((previousLoss - currentLoss) / previousLoss))
 
-        math.abs(x._1._1 - x._2._1) / numBlocks >= threshold.get
-      })
+          if (previousLoss <= 0) {
+            false
+          } else {
+            math.abs((previousLoss - currentLoss) / previousLoss) >= threshold.get
+          }
+        })
 
-    (userItemDS, termination)
+      (userItemDS, termination)
+    } else {
+      // When threshold = 0, just run until finishing the number of iterations
+      (userItemDS, userItemDS)
+    }
   }
 
   def calculateBlockLoss(ratingBlock: RatingBlock, userBlock: FactorBlock, itemBlock:FactorBlock): Double = {
@@ -452,7 +464,7 @@ object SGDforMatrixFactorization {
         VectorBuilder.vectorBuilder.build(item.toList))
 
       SquaredLoss.loss(prediction, rating.rating)
-    }).sum / math.pow(ratingBlock.block.length, 1)
+    }).sum / ratingBlock.block.length
   }
 
   // =============================== Block helper functions ========================================
@@ -522,7 +534,7 @@ object SGDforMatrixFactorization {
 
           val factorIds = factors.map(_.id)
 
-          (FactorBlock(factorBlockId, initialRatingBlock, isUser, factors.map(_.factors), omegas, Double.MaxValue, Double.MaxValue),
+          (FactorBlock(factorBlockId, initialRatingBlock, isUser, factors.map(_.factors), omegas, 10000000, 10000000),
             factorIds)
         }
       }.withForwardedFields("_1->_1.factorBlockId")
